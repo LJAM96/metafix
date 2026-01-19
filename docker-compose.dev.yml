@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  metafix-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: metafix-dev
+    ports:
+      - "3000:3000"    # Frontend (Next.js dev server)
+      - "8000:8000"    # Backend API
+    volumes:
+      - ./backend:/app/backend
+      - ./frontend:/app/frontend
+      - ./data:/app/data
+      - /app/frontend/node_modules  # Prevent overwriting node_modules
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./data/metafix.db
+      - SECRET_KEY=dev-secret-key
+      - LOG_LEVEL=DEBUG
+    restart: unless-stopped
