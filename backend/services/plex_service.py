@@ -245,6 +245,8 @@ class PlexService:
         """Get all libraries from Plex server."""
         data = await self._request("GET", "/library/sections")
         
+        logger.info(f"Plex libraries raw response: {data}")
+        
         libraries = []
         for section in data.get("MediaContainer", {}).get("Directory", []):
             # Only include video libraries (movies and shows)
@@ -252,14 +254,25 @@ class PlexService:
             if lib_type not in ("movie", "show"):
                 continue
             
+            # Try multiple possible count fields
+            item_count = (
+                section.get("count") or 
+                section.get("size") or 
+                section.get("totalSize") or 
+                0
+            )
+            
+            logger.info(f"Library '{section.get('title')}': type={lib_type}, count={item_count}, raw_section={section}")
+            
             libraries.append(PlexLibrary(
                 id=str(section.get("key")),
                 name=section.get("title", "Unknown"),
                 type=lib_type,
-                item_count=section.get("count", 0),
+                item_count=item_count,
                 uuid=section.get("uuid", ""),
             ))
         
+        logger.info(f"Found {len(libraries)} video libraries")
         return libraries
     
     async def get_library_items(

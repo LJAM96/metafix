@@ -57,6 +57,20 @@ export const api = {
       request<{
         libraries: Array<{ id: string; name: string; type: string; item_count: number }>;
       }>("/plex/libraries"),
+    auth: {
+      createPin: (clientId: string) =>
+        request<{ id: number; code: string; auth_url: string }>(
+          "/plex/auth/pin",
+          { 
+            method: "POST",
+            body: JSON.stringify({ client_id: clientId })
+          }
+        ),
+      checkPin: (pinId: number, code: string, clientId: string) =>
+        request<{ authorized: boolean; auth_token?: string }>(
+          `/plex/auth/pin/${pinId}?code=${encodeURIComponent(code)}&client_id=${encodeURIComponent(clientId)}`
+        ),
+    },
   },
 
   scan: {

@@ -34,9 +34,10 @@ async def get_plex_service(db: AsyncSession = Depends(get_db)) -> Optional[PlexS
 
 @router.post("/auth/pin")
 async def create_plex_pin(
-    client_id: str,
+    client_id: str = Body(..., embed=True),
 ):
     """Create a Plex PIN for OAuth."""
+    logger.info(f"Creating Plex PIN for client_id: {client_id}")
     try:
         pin_id, code = await PlexService.create_pin(client_id)
         
@@ -49,6 +50,7 @@ async def create_plex_pin(
             "&context%5Bdevice%5D%5Bdevice%5D=MetaFix"
         )
         
+        logger.info(f"PIN created successfully: id={pin_id}, code={code}")
         return {
             "id": pin_id,
             "code": code,

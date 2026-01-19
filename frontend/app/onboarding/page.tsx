@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 
 type Step = "plex" | "libraries" | "providers" | "complete";
@@ -18,13 +16,6 @@ interface Library {
   name: string;
   type: string;
   item_count: number;
-}
-
-interface PlexServer {
-  name: string;
-  product: string;
-  version: string;
-  connections: Array<{ uri: string; local: boolean }>;
 }
 
 export default function OnboardingPage() {
@@ -37,14 +28,6 @@ export default function OnboardingPage() {
   const [plexUrl, setPlexUrl] = useState("");
   const [plexToken, setPlexToken] = useState("");
   const [serverName, setServerName] = useState<string | null>(null);
-  
-  // OAuth state
-  const [oauthPinId, setOauthPinId] = useState<number | null>(null);
-  const [oauthCode, setOauthCode] = useState<string | null>(null);
-  const [oauthLoading, setOauthLoading] = useState(false);
-  const [detectedServers, setDetectedServers] = useState<PlexServer[]>([]);
-  const [selectedServerUri, setSelectedServerUri] = useState<string>("");
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Libraries
   const [libraries, setLibraries] = useState<Library[]>([]);
@@ -53,84 +36,6 @@ export default function OnboardingPage() {
   // Provider keys
   const [tmdbKey, setTmdbKey] = useState("");
   const [fanartKey, setFanartKey] = useState("");
-
-  // Clean up polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    };
-  }, []);
-
-  async function startPlexOAuth() {
-    setOauthLoading(true);
-    setError(null);
-    try {
-        // Generate Client ID (random string)
-        const clientId = "MetaFix-" + Math.random().toString(36).substring(2, 15);
-        const res = await api.plex.auth.createPin(clientId);
-        
-        if (res.data) {
-            setOauthPinId(res.data.id);
-            setOauthCode(res.data.code);
-            
-            // Open auth window
-            window.open(res.data.auth_url, "_blank", "width=600,height=700");
-            
-            // Start polling
-            pollIntervalRef.current = setInterval(async () => {
-                const check = await api.plex.auth.checkPin(res.data!.id, res.data!.code, clientId);
-                if (check.data?.authorized && check.data.auth_token) {
-                    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                    setPlexToken(check.data.auth_token);
-                    await fetchPlexResources(check.data.auth_token);
-                }
-            }, 2000);
-        }
-    } catch (e) {
-        setError("Failed to start Plex authentication");
-        setOauthLoading(false);
-    }
-  }
-
-  async function fetchPlexResources(token: string) {
-      try {
-          // We need an endpoint to get resources (servers) using the token
-          // Since we implemented it in backend/routers/plex.py as POST /resources
-          // But api.ts might not have it yet? I need to check if I added it to api.ts
-          // I didn't add it to api.ts explicitly in my previous edit?
-          // I added createPin and checkPin.
-          // I will use raw fetch for now if api.ts is missing it, or assume it's there.
-          // Wait, I didn't add `resources` to `api.ts`.
-          // I'll implement raw fetch here.
-          
-          const res = await fetch("/api/plex/resources", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ token })
-          });
-          
-          if (res.ok) {
-              const data = await res.json();
-              const servers = data.servers || [];
-              setDetectedServers(servers);
-              if (servers.length > 0) {
-                  // Pick first local connection if available, else first connection
-                  const firstServer = servers[0];
-                  const bestConn = firstServer.connections.find((c: any) => c.local) || firstServer.connections[0];
-                  if (bestConn) setSelectedServerUri(bestConn.uri);
-              }
-              setOauthLoading(false); // Auth done, now selecting server
-          }
-      } catch (e) {
-          setError("Failed to fetch Plex servers");
-          setOauthLoading(false);
-      }
-  }
-
-  async function handleConnectSelectedServer() {
-      if (!selectedServerUri || !plexToken) return;
-      await handlePlexConnect(selectedServerUri, plexToken);
-  }
 
   async function handlePlexConnect(url: string, token: string) {
     setLoading(true);
@@ -256,89 +161,53 @@ export default function OnboardingPage() {
           <CardHeader>
             <CardTitle>Connect to Plex</CardTitle>
             <CardDescription>
-              Sign in to your Plex account or enter details manually.
+              Enter your Plex server URL and authentication token.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="oauth" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-4">
-                    <TabsTrigger value="oauth">Sign In</TabsTrigger>
-                    <TabsTrigger value="manual">Manual</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="oauth" className="space-y-4">
-                    {!detectedServers.length ? (
-                        <div className="text-center py-4 space-y-4">
-                            <p className="text-sm text-muted-foreground">
-                                Sign in with your Plex account to discover servers automatically.
-                            </p>
-                            <Button 
-                                onClick={startPlexOAuth} 
-                                disabled={oauthLoading} 
-                                className="w-full" 
-                                variant="outline"
-                            >
-                                {oauthLoading ? "Waiting for browser login..." : "Sign in with Plex"}
-                            </Button>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label>Select Server</Label>
-                                <Select value={selectedServerUri} onValueChange={setSelectedServerUri}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select a server" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {detectedServers.map((server, idx) => (
-                                            <div key={idx}>
-                                                {server.connections.map((conn, cIdx) => (
-                                                    <SelectItem key={`${idx}-${cIdx}`} value={conn.uri}>
-                                                        {server.name} ({conn.local ? "Local" : "Remote"})
-                                                    </SelectItem>
-                                                ))}
-                                            </div>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <Button onClick={handleConnectSelectedServer} disabled={!selectedServerUri || loading} className="w-full">
-                                {loading ? "Connecting..." : "Connect"}
-                            </Button>
-                        </div>
-                    )}
-                </TabsContent>
-                
-                <TabsContent value="manual" className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="plex-url">Server URL</Label>
-                      <Input
-                        id="plex-url"
-                        type="url"
-                        placeholder="http://192.168.1.100:32400"
-                        value={plexUrl}
-                        onChange={(e) => setPlexUrl(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="plex-token">Plex Token</Label>
-                      <Input
-                        id="plex-token"
-                        type="password"
-                        placeholder="Enter your Plex token"
-                        value={plexToken}
-                        onChange={(e) => setPlexToken(e.target.value)}
-                      />
-                    </div>
-                    <Button
-                      className="w-full"
-                      onClick={() => handlePlexConnect(plexUrl, plexToken)}
-                      disabled={!plexUrl || !plexToken || loading}
-                    >
-                      {loading ? "Connecting..." : "Connect"}
-                    </Button>
-                </TabsContent>
-            </Tabs>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="plex-url">Server URL</Label>
+                <Input
+                  id="plex-url"
+                  type="url"
+                  placeholder="http://192.168.1.100:32400"
+                  value={plexUrl}
+                  onChange={(e) => setPlexUrl(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your Plex server address (e.g., http://localhost:32400 or http://192.168.x.x:32400)
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="plex-token">Plex Token</Label>
+                <Input
+                  id="plex-token"
+                  type="password"
+                  placeholder="Enter your Plex token"
+                  value={plexToken}
+                  onChange={(e) => setPlexToken(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Find your token at{" "}
+                  <a
+                    href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    Plex Support
+                  </a>
+                </p>
+              </div>
+              <Button
+                className="w-full"
+                onClick={() => handlePlexConnect(plexUrl, plexToken)}
+                disabled={!plexUrl || !plexToken || loading}
+              >
+                {loading ? "Connecting..." : "Connect"}
+              </Button>
+            </div>
 
             {error && (
               <div className="mt-4 bg-destructive/10 text-destructive text-sm p-3 rounded-md">

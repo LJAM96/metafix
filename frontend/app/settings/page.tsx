@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PlexSettingsCard } from "./plex-settings-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -371,19 +372,7 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="plex">
-          <Card>
-            <CardHeader>
-              <CardTitle>Plex Connection</CardTitle>
-              <CardDescription>
-                Manage your connection to Plex.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground text-sm">
-                To update Plex connection, please use the onboarding wizard or edit the config directly.
-              </p>
-            </CardContent>
-          </Card>
+          <PlexSettingsCard />
         </TabsContent>
       </Tabs>
     </div>

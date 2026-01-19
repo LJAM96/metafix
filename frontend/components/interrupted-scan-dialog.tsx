@@ -152,7 +152,7 @@ export function InterruptedScanDialog({
                 {interruptedScan.issues_found}
               </span>
             </div>
-            {interruptedScan.libraries.length > 0 && (
+            {interruptedScan.libraries && interruptedScan.libraries.length > 0 && (
               <div className="col-span-2">
                 <span className="text-muted-foreground">Libraries:</span>{" "}
                 <span className="font-medium">
